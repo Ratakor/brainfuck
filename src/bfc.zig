@@ -51,16 +51,16 @@ fn die(status: u8, comptime fmt: []const u8, args: anytype) noreturn {
 
 fn unrollBasic(instruction: u8, reader: anytype, writer: anytype) !u8 {
     var counter: u16 = 1;
-    var res: u8 = undefined;
+    var byte = try reader.readByte();
 
     while (true) {
-        const byte = try reader.readByte();
         if (byte == instruction) {
             counter += 1;
-        } else {
-            res = byte;
-            break;
+        } else switch (byte) {
+            '>', '<', '+', '-', '[', ']', '.', ',' => break,
+            else => {},
         }
+        byte = try reader.readByte();
     }
 
     if (counter == 1) {
@@ -81,7 +81,7 @@ fn unrollBasic(instruction: u8, reader: anytype, writer: anytype) !u8 {
         }
     }
 
-    return res;
+    return byte;
 }
 
 pub fn main() !void {
@@ -246,6 +246,7 @@ pub fn main() !void {
         \\    xor rdi, rdi
         \\    mov rax, 0x3c
         \\    syscall
+        \\
     );
     try bw.flush();
 
