@@ -1,7 +1,9 @@
+//! brainfuck compiler for x86_64 Linux
+
 const std = @import("std");
 const eql = std.mem.eql;
 
-const version = "0.1.0";
+const version = "0.0.0";
 const usage =
     \\Usage: {s} [options] file
     \\Options:
@@ -16,29 +18,29 @@ const usage =
 ;
 
 const Stack = struct {
-        stack: std.ArrayList(usize),
+    stack: std.ArrayList(usize),
 
-        const Self = @This();
+    const Self = @This();
 
-        pub fn init(allocator: std.mem.Allocator) Self {
-            return Self{ .stack = std.ArrayList(usize).init(allocator) };
-        }
+    pub fn init(allocator: std.mem.Allocator) Self {
+        return Self{ .stack = std.ArrayList(usize).init(allocator) };
+    }
 
-        pub fn deinit(self: *Self) void {
-            self.stack.deinit();
-        }
+    pub fn deinit(self: *Self) void {
+        self.stack.deinit();
+    }
 
-        pub fn push(self: *Self, val: usize) !void {
-            try self.stack.append(val);
-        }
+    pub fn push(self: *Self, val: usize) !void {
+        try self.stack.append(val);
+    }
 
-        pub fn pop(self: *Self) ?usize {
-            return self.stack.popOrNull();
-        }
+    pub fn pop(self: *Self) ?usize {
+        return self.stack.popOrNull();
+    }
 
-        pub fn isEmpty(self: *Self) bool {
-            return self.stack.items.len == 0;
-        }
+    pub fn isEmpty(self: *Self) bool {
+        return self.stack.items.len == 0;
+    }
 };
 
 fn die(status: u8, comptime fmt: []const u8, args: anytype) noreturn {
@@ -115,7 +117,7 @@ pub fn main() !void {
         } else if (eql(u8, arg, "-s")) {
             sflag = true;
         } else if (eql(u8, arg[0..1], "-")) {
-            try die(1, "{s}: unknown option {s}\n" ++ usage, .{ progname, arg, progname });
+            die(1, "{s}: unknown option {s}\n" ++ usage, .{ progname, arg, progname });
         } else {
             input_filename = arg;
         }
@@ -125,10 +127,13 @@ pub fn main() !void {
         die(1, "{s}: no input file\n", .{progname});
     }
 
-    const input_file = try cwd.openFile(input_filename.?, .{});
+    const input_file = cwd.openFile(input_filename.?, .{}) catch |err| {
+        die(1, "{s}: failed to open `{s}`: {s}\n", .{ progname, input_filename.?, @errorName(err) });
+    };
     defer input_file.close();
-    var br = std.io.bufferedReader(input_file.reader());
-    const reader = br.reader();
+    var reader = input_file.reader();
+    // var br = std.io.bufferedReader(input_file.reader());
+    // const reader = br.reader();
 
     var asm_filename: []u8 = @constCast("a.s");
     if (Sflag) {
@@ -147,7 +152,8 @@ pub fn main() !void {
     var bw = std.io.bufferedWriter(asm_file.writer());
     const writer = bw.writer();
 
-    // r12 is the pointer for the data
+    // r12 is the index for the data, we use it as index instead of pointer to
+    // wrap around data instead of overflowing
     try writer.writeAll(
         \\bits 64
         \\default rel
@@ -182,8 +188,18 @@ pub fn main() !void {
         }
 
         switch (byte) {
-            // TODO: optimize loops
             '[' => {
+                const next = try reader.readByte();
+                if (next == '+' or next == '-') {
+                    if (try reader.readByte() == ']') {
+                        try writer.writeAll("    mov byte [data + r12], 0\n");
+                        continue;
+                    }
+                    try input_file.seekBy(-1);
+                }
+                try input_file.seekBy(-1);
+                reader = input_file.reader();
+
                 try writer.print(
                     \\    cmp byte [data + r12], 0
                     \\    je .Le{d}
@@ -238,7 +254,6 @@ pub fn main() !void {
         std.os.exit(0);
     }
 
-    errdefer cwd.deleteFile("a.s") catch {};
     if (cflag) {
         if (eql(u8, output_filename, "a.out")) {
             output_filename = try allocator.alloc(u8, input_filename.?.len + 2);
