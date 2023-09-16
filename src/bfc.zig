@@ -3,7 +3,7 @@
 const std = @import("std");
 const eql = std.mem.eql;
 
-const version = "0.0.0";
+const version = "0.1.0";
 const usage =
     \\Usage: {s} [options] file
     \\Options:
