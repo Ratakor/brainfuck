@@ -15,7 +15,7 @@ default rel
 
 section .rodata
 	max_codesize equ 32768 ; must be an integral multiple of the page size
-	error_input_str db "usage: bf file.bf", 0x0a
+	error_input_str db "usage: bf file.b", 0x0a
 	error_input_str_len equ $ - error_input_str
 	error_open_failed db "bf: failed to open file", 0x0a
 	error_open_failed_len equ $ - error_open_failed

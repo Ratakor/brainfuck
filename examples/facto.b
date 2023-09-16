@@ -1,4 +1,4 @@
-[facto.bf -- compute factorials
+[facto.b -- compute factorials
 (c) 2019 Daniel B. Cristofani
 http://brainfuck.org/]
 

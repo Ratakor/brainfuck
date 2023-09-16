@@ -25,7 +25,7 @@ main(int argc, char *argv[])
 	int fd;
 
 	if (argc != 2)
-		die("usage: bf file.bf\n");
+		die("usage: bf file.b\n");
 
 	if ((fd = open(argv[1], O_RDONLY)) < 0)
 		die("error: failed to open file\n");
