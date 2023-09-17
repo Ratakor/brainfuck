@@ -25,6 +25,5 @@ Options:
   -o <file>        Place the output into <file>.
   -S               Compile only, do not assemble or link.
   -c               Compile and assemble, but do not link.
-  -g               Produce debugging information.
   -s               Strip the output file.
 ```

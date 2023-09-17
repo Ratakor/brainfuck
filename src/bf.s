@@ -70,32 +70,32 @@ _start:
 .main_loop:
 	; switch [instruction]
 
-.case1: ; case '>'
-	cmp bl, 0x3e
+.case1:
+	cmp bl, '>'
 	jne .case2
 	inc r12w ; data_idx++
 	jmp .switch_end
 
-.case2: ; case '<'
-	cmp bl, 0x3c
+.case2:
+	cmp bl, '<'
 	jne .case3
 	dec r12w ; data_idx--
 	jmp .switch_end
 
-.case3: ; case '+'
-	cmp bl, 0x2b
+.case3:
+	cmp bl, '+'
 	jne .case4
 	inc byte [data + r12] ; data[data_idx]++
 	jmp .switch_end
 
-.case4: ; case '-'
-	cmp bl, 0x2d
+.case4:
+	cmp bl, '-'
 	jne .case5
 	dec byte [data + r12] ; data[data_idx]--
 	jmp .switch_end
 
-.case5: ; case '['
-	cmp bl, 0x5b
+.case5:
+	cmp bl, '['
 	jne .case6
 	cmp byte [data + r12], 0
 	jne .case5.else ; data[data_idx] == 0
@@ -104,12 +104,12 @@ _start:
 	inc rbp ; rbp = & next instruction
 	mov bl, [rbp] ; bl = current instruction
 
-	cmp bl, 0x5b ; '['
+	cmp bl, '['
 	jne .case5.loop.elseif
 	inc rcx ; bracket_counter++
 	jmp .case5.loop
 .case5.loop.elseif:
-	cmp bl, 0x5d ; ']'
+	cmp bl, ']'
 	jne .case5.loop
 	dec rcx ; bracket_counter--
 	cmp rcx, 0
@@ -121,8 +121,8 @@ _start:
 	mov [rsp], rbp ; save address for matching ']'
 	jmp .switch_end
 
-.case6: ; case ']'
-	cmp bl, 0x5d
+.case6:
+	cmp bl, ']'
 	jne .case7
 	cmp byte [data + r12], 0
 	je .case6.else ; data[data_idx] != 0
@@ -132,8 +132,8 @@ _start:
 	add rsp, 8 ; discard saved instruction address
 	jmp .switch_end
 
-.case7: ; case '.'
-	cmp bl, 0x2e
+.case7:
+	cmp bl, '.'
 	jne .case8
 	mov rdx, 1 ; count
 	lea rsi, [data + r12] ; buf = &data[data_idx]
@@ -142,8 +142,8 @@ _start:
 	syscall
 	jmp .switch_end
 
-.case8: ; case ','
-	cmp bl, 0x2c
+.case8:
+	cmp bl, ','
 	jne .switch_end
 	mov rdx, 1 ; count
 	lea rsi, [data + r12] ; buf = &data[data_idx]
