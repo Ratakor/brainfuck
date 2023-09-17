@@ -12,7 +12,6 @@ const usage =
     \\  -o <file>        Place the output into <file>.
     \\  -S               Compile only, do not assemble or link.
     \\  -c               Compile and assemble, but do not link.
-    \\  -g               Produce debugging information.
     \\  -s               Strip the output file.
     \\
 ;
@@ -85,12 +84,12 @@ fn unrollBasic(instruction: u8, reader: anytype, writer: anytype) !u8 {
 }
 
 pub fn main() !void {
-    var input_filename: ?[]const u8 = null;
-    var output_filename: []u8 = @constCast("a.out"[0..]);
+    var null_input_filename: ?[]const u8 = null;
+    var output_filename: []const u8 = "a.out"[0..];
     var Sflag = false;
     var cflag = false;
-    var gflag = false;
     var sflag = false;
+    var oflag = false;
 
     const cwd = std.fs.cwd();
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
@@ -105,47 +104,45 @@ pub fn main() !void {
         } else if (eql(u8, arg, "-v") or eql(u8, arg, "--version")) {
             die(0, "{s} {s}\n", .{ progname, version });
         } else if (eql(u8, arg, "-o")) {
-            output_filename = @constCast(args.next() orelse {
+            oflag = true;
+            output_filename = args.next() orelse {
                 die(1, "{s}: missing filename after `-o`\n", .{progname});
-            });
+            };
         } else if (eql(u8, arg, "-S")) {
             Sflag = true;
         } else if (eql(u8, arg, "-c")) {
             cflag = true;
-        } else if (eql(u8, arg, "-g")) {
-            gflag = true;
         } else if (eql(u8, arg, "-s")) {
             sflag = true;
         } else if (eql(u8, arg[0..1], "-")) {
             die(1, "{s}: unknown option {s}\n" ++ usage, .{ progname, arg, progname });
         } else {
-            input_filename = arg;
+            null_input_filename = arg;
         }
     }
 
-    if (input_filename == null) {
+    if (null_input_filename == null) {
         die(1, "{s}: no input file\n", .{progname});
     }
-
-    const input_file = cwd.openFile(input_filename.?, .{}) catch |err| {
-        die(1, "{s}: failed to open `{s}`: {s}\n", .{ progname, input_filename.?, @errorName(err) });
+    const input_filename = null_input_filename.?;
+    const input_file = cwd.openFile(input_filename, .{}) catch |err| {
+        die(1, "{s}: failed to open `{s}`: {s}\n", .{ progname, input_filename, @errorName(err) });
     };
     defer input_file.close();
     var reader = input_file.reader();
     // var br = std.io.bufferedReader(input_file.reader());
     // const reader = br.reader();
 
-    var asm_filename: []u8 = @constCast("a.s");
-    if (Sflag) {
-        if (eql(u8, output_filename, "a.out")) {
-            asm_filename = try allocator.alloc(u8, input_filename.?.len + 2);
-            const i = std.mem.lastIndexOfLinear(u8, input_filename.?, ".") orelse input_filename.?.len;
-            const s = try std.fmt.bufPrint(asm_filename, "{s}.s", .{input_filename.?[0..i]});
-            asm_filename = try allocator.realloc(asm_filename, s.len);
-        } else {
-            asm_filename = output_filename;
-        }
+    var asm_filename: []u8 = undefined;
+    if (Sflag and oflag) {
+        asm_filename = @constCast(output_filename);
+    } else {
+        asm_filename = try allocator.alloc(u8, input_filename.len + 2);
+        const i = std.mem.lastIndexOfLinear(u8, input_filename, ".") orelse input_filename.len;
+        const s = try std.fmt.bufPrint(asm_filename, "{s}.s", .{input_filename[0..i]});
+        asm_filename = try allocator.realloc(asm_filename, s.len);
     }
+
     const asm_file = try cwd.createFile(asm_filename, .{});
     defer asm_file.close();
     errdefer cwd.deleteFile(asm_filename) catch {};
@@ -251,50 +248,55 @@ pub fn main() !void {
     try bw.flush();
 
     if (Sflag) {
-        // allocator.free(asm_filename);
+        if (!oflag) {
+            allocator.free(asm_filename);
+        }
         std.os.exit(0);
     }
 
-    if (cflag) {
-        if (eql(u8, output_filename, "a.out")) {
-            output_filename = try allocator.alloc(u8, input_filename.?.len + 2);
-            const i = std.mem.lastIndexOfLinear(u8, input_filename.?, ".") orelse input_filename.?.len;
-            const s = try std.fmt.bufPrint(output_filename, "{s}.o", .{input_filename.?[0..i]});
-            output_filename = try allocator.realloc(output_filename, s.len);
-        }
-        const nasm_argv = if (gflag)
-            [_][]const u8{ "nasm", "-g", "-f", "elf64", "-o", output_filename, "a.s" }
-        else
-            [_][]const u8{ "nasm", "", "-f", "elf64", "-o", output_filename, "a.s" };
-        const res = try std.ChildProcess.exec(.{ .argv = &nasm_argv, .allocator = allocator });
-        if (res.term.Exited > 0) {
-            die(1, "{s}: nasm failed with status {d}\n", .{ progname, res.term.Exited });
-        }
-        // allocator.free(output_filename);
+    var obj_filename: []u8 = undefined;
+    if (cflag and oflag) {
+        obj_filename = @constCast(output_filename);
     } else {
-        const nasm_argv = if (gflag)
-            [_][]const u8{ "nasm", "-g", "-f", "elf64", "-o", "a.o", "a.s" }
-        else
-            [_][]const u8{ "nasm", "", "-f", "elf64", "-o", "a.o", "a.s" };
-        var res = try std.ChildProcess.exec(.{ .argv = &nasm_argv, .allocator = allocator });
-        if (res.term.Exited > 0) {
-            die(1, "{s}: nasm failed with status {d}\n", .{ progname, res.term.Exited });
-        }
+        obj_filename = try allocator.alloc(u8, input_filename.len + 2);
+        const i = std.mem.lastIndexOfLinear(u8, input_filename, ".") orelse input_filename.len;
+        const s = try std.fmt.bufPrint(obj_filename, "{s}.o", .{input_filename[0..i]});
+        obj_filename = try allocator.realloc(obj_filename, s.len);
+    }
+
+    var res = try std.ChildProcess.exec(.{
+        .argv = &[_][]const u8{ "nasm", "-f", "elf64", "-o", obj_filename, asm_filename },
+        .allocator = allocator,
+    });
+    cwd.deleteFile(asm_filename) catch {};
+    allocator.free(asm_filename);
+    if (res.term.Exited > 0) {
+        cwd.deleteFile(obj_filename) catch {};
+        die(1, "{s}: nasm failed with status {d}\n", .{ progname, res.term.Exited });
+    }
+
+    if (!cflag) {
         res = try std.ChildProcess.exec(.{
-            .argv = &[_][]const u8{ "ld", "-o", output_filename, "a.o" },
+            .argv = &[_][]const u8{ "ld", "-o", output_filename, obj_filename },
             .allocator = allocator,
         });
+        cwd.deleteFile(obj_filename) catch {};
         if (res.term.Exited > 0) {
             die(1, "{s}: linker failed with status {d}\n", .{ progname, res.term.Exited });
         }
-        cwd.deleteFile("a.o") catch {};
     }
-    cwd.deleteFile("a.s") catch {};
 
     if (sflag) {
+        if (cflag) {
+            output_filename = obj_filename;
+        }
         _ = try std.ChildProcess.exec(.{
             .argv = &[_][]const u8{ "strip", "-s", output_filename },
             .allocator = allocator,
         });
+    }
+
+    if (!cflag or !oflag) {
+        allocator.free(obj_filename);
     }
 }
