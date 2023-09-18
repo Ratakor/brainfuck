@@ -27,3 +27,9 @@ Options:
   -c               Compile and assemble, but do not link.
   -s               Strip the output file.
 ```
+
+todo
+----
+- add sighandler to remove temporary files
+- use an IR to do more optimization
+- support more targets
